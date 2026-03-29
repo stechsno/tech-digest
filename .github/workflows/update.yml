@@ -1,33 +1,33 @@
 name: Update Tech Digest
-
+ 
 on:
   schedule:
     # Elke ochtend om 07:00 (Nederlandse tijd = 06:00 UTC in zomer, 07:00 UTC in winter)
     - cron: "0 6 * * *"
   workflow_dispatch: # handmatig triggeren via GitHub UI
-
+ 
 permissions:
   contents: write
-
+ 
 jobs:
   build:
     runs-on: ubuntu-latest
-
+ 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
+ 
       - name: Python instellen
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
+ 
       - name: Dependencies installeren
         run: pip install feedparser requests beautifulsoup4
-
+ 
       - name: Digest genereren
         run: python fetch_news.py
-
+ 
       - name: index.html committen en pushen
         run: |
           git config user.name  "Tech Digest Bot"
