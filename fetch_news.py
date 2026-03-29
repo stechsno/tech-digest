@@ -7,22 +7,37 @@ import html
 import re
 import json
 import time
-
+ 
 # ── Feeds om te volgen ────────────────────────────────────────────────────────
 FEEDS = [
-    {"name": "Hacker News",  "url": "https://news.ycombinator.com/rss",          "emoji": "🔶"},
-    {"name": "AWS Blog",     "url": "https://aws.amazon.com/blogs/aws/feed/",     "emoji": "☁️"},
-    {"name": "Kubernetes",   "url": "https://kubernetes.io/feed.xml",             "emoji": "⚙️"},
-    {"name": "CNCF",         "url": "https://www.cncf.io/feed/",                  "emoji": "🌐"},
-    {"name": "HashiCorp",    "url": "https://www.hashicorp.com/blog/feed.xml",    "emoji": "🔷"},
-    {"name": "The Register", "url": "https://www.theregister.com/headlines.atom", "emoji": "📰"},
-    {"name": "Docker",       "url": "https://www.docker.com/feed/",               "emoji": "🐳"},
-    {"name": "Google Cloud", "url": "https://cloudblog.withgoogle.com/rss/",      "emoji": "🔵"},
+    # ── Azure ──────────────────────────────────────────────────────────────────
+    {"name": "Azure Blog",       "url": "https://azure.microsoft.com/en-us/blog/feed/",                        "emoji": "☁️"},
+    {"name": "Azure Updates",    "url": "https://azure.microsoft.com/en-us/updates/feed/",                     "emoji": "🔔"},
+    {"name": "MS Tech Community","url": "https://techcommunity.microsoft.com/t5/s/gxcuf89792/rss/board?board.id=AzureBlog", "emoji": "🪟"},
+ 
+    # ── Cloud Native & DevOps ──────────────────────────────────────────────────
+    {"name": "Kubernetes",       "url": "https://kubernetes.io/feed.xml",                                      "emoji": "⚙️"},
+    {"name": "CNCF",             "url": "https://www.cncf.io/feed/",                                           "emoji": "🌐"},
+    {"name": "HashiCorp",        "url": "https://www.hashicorp.com/blog/feed.xml",                             "emoji": "🔷"},
+    {"name": "Docker",           "url": "https://www.docker.com/feed/",                                        "emoji": "🐳"},
+    {"name": "GitHub Blog",      "url": "https://github.blog/feed/",                                           "emoji": "🐙"},
+ 
+    # ── Architectuur (richting IT Architect) ───────────────────────────────────
+    {"name": "Martin Fowler",    "url": "https://martinfowler.com/feed.atom",                                   "emoji": "🏗️"},
+    {"name": "InfoQ",            "url": "https://feed.infoq.com/",                                             "emoji": "💡"},
+    {"name": "The New Stack",    "url": "https://thenewstack.io/feed/",                                        "emoji": "📚"},
+ 
+    # ── Security & Netwerk ─────────────────────────────────────────────────────
+    {"name": "Cloudflare Blog",  "url": "https://blog.cloudflare.com/rss/",                                    "emoji": "🔒"},
+    {"name": "Bruce Schneier",   "url": "https://www.schneier.com/blog/atom.xml",                              "emoji": "🛡️"},
+ 
+    # ── Breed tech nieuws ──────────────────────────────────────────────────────
+    {"name": "The Register",     "url": "https://www.theregister.com/headlines.atom",                          "emoji": "📰"},
 ]
-
+ 
 MAX_PER_FEED = 5
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; TechDigestBot/1.0)"}
-
+ 
 # Tags die we willen bewaren in de reader
 ALLOWED_TAGS = {
     "p", "br", "h1", "h2", "h3", "h4", "h5", "h6",
@@ -31,7 +46,7 @@ ALLOWED_TAGS = {
     "figure", "figcaption", "picture", "source",
     "table", "thead", "tbody", "tr", "th", "td",
 }
-
+ 
 def make_absolute(tag, attr, base_url):
     """Maak een relatieve URL absoluut."""
     val = tag.get(attr)
@@ -39,7 +54,7 @@ def make_absolute(tag, attr, base_url):
         tag[attr] = urljoin(base_url, val)
     elif val and val.startswith("//"):
         tag[attr] = "https:" + val
-
+ 
 def clean_html_text(raw: str) -> str:
     """Haal plain text uit HTML (voor de kaart-samenvatting)."""
     if not raw:
@@ -47,7 +62,7 @@ def clean_html_text(raw: str) -> str:
     soup = BeautifulSoup(raw, "html.parser")
     text = soup.get_text(separator=" ")
     return re.sub(r'\s+', ' ', text).strip()
-
+ 
 def fetch_full_article(url: str) -> str:
     """
     Haal het volledige artikel op en geef nette HTML terug,
@@ -58,7 +73,7 @@ def fetch_full_article(url: str) -> str:
         resp.raise_for_status()
         soup = BeautifulSoup(resp.text, "html.parser")
         base_url = url
-
+ 
         # Verwijder rommel
         for tag in soup(["nav", "header", "footer", "aside", "script",
                           "style", "form", "iframe", "button", "input",
@@ -67,7 +82,7 @@ def fetch_full_article(url: str) -> str:
         # Verwijder HTML-commentaar
         for comment in soup.find_all(string=lambda t: isinstance(t, Comment)):
             comment.extract()
-
+ 
         # Zoek de hoofd-inhoud
         content = (
             soup.find("article") or
@@ -80,7 +95,7 @@ def fetch_full_article(url: str) -> str:
         )
         if not content:
             return ""
-
+ 
         # Maak URLs absoluut
         for img in content.find_all("img"):
             make_absolute(img, "src", base_url)
@@ -94,7 +109,7 @@ def fetch_full_article(url: str) -> str:
             for attr in ["class", "id", "width", "height", "srcset", "sizes", "data-src"]:
                 if attr in img.attrs:
                     del img[attr]
-
+ 
         for a in content.find_all("a"):
             make_absolute(a, "href", base_url)
             a["target"] = "_blank"
@@ -102,28 +117,28 @@ def fetch_full_article(url: str) -> str:
             for attr in ["class", "id", "style"]:
                 if attr in a.attrs:
                     del a[attr]
-
+ 
         # Verwijder alle niet-toegestane tags maar bewaar hun inhoud
         for tag in content.find_all(True):
             if tag.name not in ALLOWED_TAGS:
                 tag.unwrap()
-
+ 
         # Verwijder lege class/id/style van overgebleven tags
         for tag in content.find_all(True):
             for attr in ["class", "id", "style", "data-*"]:
                 tag.attrs = {k: v for k, v in tag.attrs.items()
                              if k in ("src", "href", "alt", "target",
                                       "rel", "loading", "colspan", "rowspan")}
-
+ 
         result = str(content)
         # Verwijder meerdere lege regels
         result = re.sub(r'\n{3,}', '\n\n', result)
         return result
-
+ 
     except Exception as e:
         print(f"      [WARN] Kon artikel niet ophalen: {e}")
         return ""
-
+ 
 def fetch_feed(feed_info: dict) -> list:
     """Haal artikelen op uit één RSS feed."""
     try:
@@ -135,17 +150,17 @@ def fetch_feed(feed_info: dict) -> list:
             raw_sum  = entry.get("summary", entry.get("description", ""))
             summary  = clean_html_text(raw_sum)
             short    = summary[:280] + ("…" if len(summary) > 280 else "")
-
+ 
             pub = entry.get("published_parsed") or entry.get("updated_parsed")
             date_str = datetime(*pub[:6], tzinfo=timezone.utc).strftime("%-d %b %Y") if pub else "–"
-
+ 
             print(f"    📄 {title[:65]}")
             full_html = fetch_full_article(link)
             if not full_html:
                 # Fallback: gebruik RSS-beschrijving als HTML
                 full_html = f"<p>{summary}</p>"
             time.sleep(0.4)
-
+ 
             articles.append({
                 "title":     title,
                 "link":      link,
@@ -159,10 +174,10 @@ def fetch_feed(feed_info: dict) -> list:
     except Exception as e:
         print(f"  [WARN] Feed mislukt ({feed_info['name']}): {e}")
         return []
-
+ 
 def generate_html(all_articles: list) -> str:
     now = datetime.now().strftime("%-d %B %Y, %H:%M")
-
+ 
     articles_json = json.dumps([{
         "title":     a["title"],
         "link":      a["link"],
@@ -171,7 +186,7 @@ def generate_html(all_articles: list) -> str:
         "source":    a["source"],
         "emoji":     a["emoji"],
     } for a in all_articles], ensure_ascii=False)
-
+ 
     cards_html = ""
     for i, a in enumerate(all_articles):
         cards_html += f"""
@@ -184,7 +199,7 @@ def generate_html(all_articles: list) -> str:
           <p class="summary">{a["summary"]}</p>
           <span class="read-more">Lees verder →</span>
         </article>"""
-
+ 
     return f"""<!DOCTYPE html>
 <html lang="nl">
 <head>
@@ -251,7 +266,7 @@ def generate_html(all_articles: list) -> str:
     .title {{ font-size: 1rem; font-weight: 600; margin-bottom: .5rem; }}
     .summary {{ font-size: .875rem; color: var(--muted); margin-bottom: .5rem; }}
     .read-more {{ font-size: .8rem; color: var(--accent); }}
-
+ 
     /* ── Overlay + Reader ── */
     .overlay {{
       display: none; position: fixed; inset: 0;
@@ -281,7 +296,7 @@ def generate_html(all_articles: list) -> str:
       cursor: pointer; flex-shrink: 0; display: flex;
       align-items: center; justify-content: center;
     }}
-
+ 
     /* ── Artikel-inhoud opmaak ── */
     .r-body {{ font-size: .95rem; line-height: 1.85; color: var(--text); }}
     .r-body h1, .r-body h2 {{
@@ -327,7 +342,7 @@ def generate_html(all_articles: list) -> str:
       border: 1px solid var(--border); padding: .5rem .75rem; text-align: left;
     }}
     .r-body th {{ background: var(--border); font-weight: 600; }}
-
+ 
     /* ── Footer ── */
     .r-footer {{
       margin-top: 1.75rem; padding-top: 1rem;
@@ -340,7 +355,7 @@ def generate_html(all_articles: list) -> str:
     }}
     .btn-primary {{ background: var(--accent); color: #fff; text-decoration: none; }}
     .btn-secondary {{ background: var(--border); color: var(--muted); }}
-
+ 
     @media (min-width: 640px) {{
       .reader {{
         max-width: 720px; left: 50%; right: auto;
@@ -357,10 +372,10 @@ def generate_html(all_articles: list) -> str:
     <h1>⚡ Tech Digest</h1>
     <span class="updated">Bijgewerkt: {now}</span>
   </header>
-
+ 
   <div class="feed-filter" id="filters"></div>
   <div class="cards" id="cards">{cards_html}</div>
-
+ 
   <div class="overlay" id="overlay" onclick="closeReader()"></div>
   <div class="reader" id="reader">
     <div class="reader-top">
@@ -376,15 +391,15 @@ def generate_html(all_articles: list) -> str:
       <button class="btn btn-secondary" onclick="closeReader()">Sluiten</button>
     </div>
   </div>
-
+ 
   <script>
     const ARTICLES = {articles_json};
-
+ 
     // Filterknoppen
     const cards = document.querySelectorAll('.card');
     const sources = [...new Set([...cards].map(c => c.dataset.source))];
     const filterContainer = document.getElementById('filters');
-
+ 
     function addBtn(label, value) {{
       const btn = document.createElement('button');
       btn.className = 'filter-btn' + (value === 'all' ? ' active' : '');
@@ -398,7 +413,7 @@ def generate_html(all_articles: list) -> str:
     }}
     addBtn('Alles', 'all');
     sources.forEach(s => addBtn(s, s));
-
+ 
     // Reader openen
     function openReader(i) {{
       const a = ARTICLES[i];
@@ -411,19 +426,19 @@ def generate_html(all_articles: list) -> str:
       document.getElementById('reader').scrollTop    = 0;
       document.body.style.overflow = 'hidden';
     }}
-
+ 
     function closeReader() {{
       document.getElementById('overlay').classList.remove('open');
       document.getElementById('reader').classList.remove('open');
       document.body.style.overflow = '';
     }}
-
+ 
     document.addEventListener('keydown', e => {{ if (e.key === 'Escape') closeReader(); }});
   </script>
 </body>
 </html>
 """
-
+ 
 if __name__ == "__main__":
     print("📡 Feeds ophalen…\n")
     all_articles = []
@@ -432,7 +447,7 @@ if __name__ == "__main__":
         articles = fetch_feed(feed)
         print(f"  ✅ {len(articles)} artikelen\n")
         all_articles.extend(articles)
-
+ 
     print(f"✅ Totaal: {len(all_articles)} artikelen")
     print("🖊️  HTML genereren…")
     with open("index.html", "w", encoding="utf-8") as f:
